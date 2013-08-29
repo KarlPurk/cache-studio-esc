@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25" zv="Cache for Windows (x86-32) 2013.1.1 (Build 501.1U)" ts="2013-08-29 19:54:22">
+<Class name="App.SourceControl">
+<ProcedureBlock>1</ProcedureBlock>
+<Super>%Studio.SourceControl.Base</Super>
+<TimeChanged>63063,69757.990543</TimeChanged>
+<TimeCreated>63058,42781.387247</TimeCreated>
+
+<XData name="Menu">
+<Data><![CDATA[
+<MenuBase>
+<Menu Name="%SourceMenu" Type="0">
+<MenuItem Name="%AddToSourceControl" Save="100"/>
+</Menu>
+<Menu Name="%SourceContext" Type="1">
+<MenuItem Name="%AddToSourceControl" Save="100"/>
+</Menu>
+</MenuBase>
+]]></Data>
+</XData>
+
+<Method name="OnBeforeDelete">
+<Description>
+Called before an item is deleted. Returning an error code prevents the delete from occuring.</Description>
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	if (..IsProjectRegistered(..GetActiveProject())=0) {
+		quit $$$OK
+	}
+	
+	
+	if (..IsProject(InternalName)=1) {
+		do ..DeleteProject(InternalName)
+	}
+	
+	Set filename=..ExternalName(InternalName)
+ 	If filename="" Quit $$$OK
+	set deleted = ##class(%File).Delete(filename)
+	if (deleted=1) {
+		write "Removed """_filename_""" from source control.", !
+	}
+	
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="OnBeforeLoad">
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ set ActiveProject = ..GetActiveProject()
+ 
+ if (ActiveProject="") {
+	 if (..IsProject(InternalName)=0) {
+	  	quit $$$OK
+	 }
+	 do ..ActivateProject(InternalName)
+	 set ActiveProject = InternalName
+ } 
+ else {
+	if ((..IsProject(InternalName)=1) && (ActiveProject'=InternalName)) {
+		do ..ActivateProject(InternalName)	
+		set ActiveProject = InternalName
+	}
+ }
+
+ if (..IsProject(InternalName)) {  
+ 	if (..IsProjectRegistered(InternalName)=0) {
+		do ..WriteProjectRegisterHelp(InternalName)
+		quit $$$OK
+ 	}	
+ }
+ else {
+	if (..IsProjectRegistered(ActiveProject)=0) {
+		write "Project not registered.  Could not import "_InternalName,!
+		quit $$$OK
+	}
+ }
+ 
+ Set filename=..ExternalName(InternalName)
+ If filename="" Quit $$$OK
+ 
+ #; If no file then skip the import
+ If '##class(%File).Exists(filename) Write "File ",filename," not found, skipping import",! Quit $$$OK
+ 
+ #; Call the function to do the load
+ Set sc=$system.OBJ.Load(filename,"-l-d")
+ If $$$ISOK(sc) {
+ 	Write !,"Imported '",InternalName,"' from file '",filename,"'",!
+ } Else {
+ 	Do DecomposeStatus^%apiOBJ(sc,.errors,"d")
+ }
+ Quit sc
+]]></Implementation>
+</Method>
+
+<Method name="OnAfterSave">
+<FormalSpec>InternalName:%String,Object:%RegisteredObject</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ set ActiveProject = ..GetActiveProject()
+	
+ if (ActiveProject="") {
+	 if (..IsProject(InternalName)=0) {
+	  	quit $$$OK
+	 }
+	 do ..ActivateProject(InternalName)
+	 set ActiveProject = InternalName
+ } 
+ else {
+	if ((..IsProject(InternalName)=1) && (ActiveProject'=InternalName)) {
+		do ..ActivateProject(InternalName)	
+		set ActiveProject = InternalName
+	}
+ }
+  
+  if (..IsProject(InternalName)) {  
+ 	if (..IsProjectRegistered(InternalName)=0) {
+		do ..WriteProjectRegisterHelp(InternalName)
+		quit $$$OK
+ 	}	
+ }	
+ else {
+	if (..IsProjectRegistered(ActiveProject)=0) {
+		write "Project not registered.  Could not export "_InternalName,!
+		quit $$$OK
+	}
+ }
+ 
+ Set filename=..ExternalName(InternalName)
+ If filename="" Quit $$$OK
+ 
+ #; If no file then skip the export
+ If '##class(%File).Exists(filename) {
+	 write "File ",filename," not found, skipping export",! Quit $$$OK
+ }
+ 
+ do ..Export(InternalName)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="Export">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>InternalName:%String</FormalSpec>
+<Implementation><![CDATA[
+ Set filename=..GetExternalName(InternalName)
+ If filename="" Quit $$$OK
+  
+ #; Call the export function
+ Set sc=$system.OBJ.Export(InternalName,filename,"-d")
+ If $$$ISOK(sc) {
+ 	Write "Exported '",InternalName,"' to file '",filename,"'",!
+ } Else {
+ Do DecomposeStatus^%apiOBJ(sc,,"d")
+ }
+]]></Implementation>
+</Method>
+
+<Method name="OnAfterCompile">
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	write !
+ 	Quit ..OnAfterSave(InternalName)
+]]></Implementation>
+</Method>
+
+<Method name="GetExternalName">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ Set name=$piece(InternalName,".",1,$length(InternalName,".")-1),ext=$zconvert($piece(InternalName,".",$length(InternalName,".")),"l")
+ If name="" Quit ""
+ Set filename=ext_"\"_$translate(name,".","\")_".xml"
+ set projectName = ..GetActiveProject()
+ Quit ..GetProjectPath(projectName)_filename
+]]></Implementation>
+</Method>
+
+<Method name="ExternalName">
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[ quit ..GetExternalName(InternalName)
+]]></Implementation>
+</Method>
+
+<Method name="CheckOut">
+<FormalSpec>InternalName:%String,Description:%String=""</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+  write "Checkout called"
+  quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="OnMenuItem">
+<FormalSpec><![CDATA[MenuName:%String,InternalName:%String,SelectedText:%String,&Enabled:%Boolean,&DisplayName:%String]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	//write MenuName," ",InternalName," ",SelectedText,!
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AddToSourceControl">
+<FormalSpec>InternalName:%String,Description:%String=""</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ if (..GetActiveProject()="") {
+	 write "Unable to add file to source control.  You must create a project first", !
+	  quit $$$OK
+ } 
+  
+ if ('..IsProjectRegistered(..GetActiveProject())) {
+	do ..WriteProjectRegisterHelp(InternalName)
+	quit $$$OK
+ }	
+ 
+ do ..Export(InternalName)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="IsProject">
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[	quit $piece(InternalName, ".", 2)="PRJ"
+]]></Implementation>
+</Method>
+
+<Method name="IsProjectRegistered">
+<FormalSpec>InternalName:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	if ($data(^SourceControlProjectRegistry)=0) {
+		quit 0
+	}
+	if ($data(^SourceControlProjectRegistry(InternalName, "project_path"))=0) {
+		quit 0
+	}
+	quit 1
+]]></Implementation>
+</Method>
+
+<Method name="RegisterProject">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Name:%String,Path:%String</FormalSpec>
+<Implementation><![CDATA[
+	set ^SourceControlProjectRegistry(Name, "project_path") = Path
+	write "Project """_Name_" has been registered at """_Path_"", !
+	do ..Export(Name)
+]]></Implementation>
+</Method>
+
+<Method name="GetProjectPath">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Name:%String</FormalSpec>
+<Implementation><![CDATA[
+	if (Name="") {
+		quit ""	
+	}
+	if ($get(^SourceControlProjectRegistry(Name, "project_path"))'="") {
+		quit ^SourceControlProjectRegistry(Name, "project_path")	
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="ActivateProject">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Name:%String</FormalSpec>
+<Implementation><![CDATA[
+	set ^SourceControlProjectRegistry = Name
+	write Name," is now the active project",!
+]]></Implementation>
+</Method>
+
+<Method name="GetActiveProject">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	if ($get(^SourceControlProjectRegistry)'="") {
+		quit ^SourceControlProjectRegistry	
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="WriteProjectRegisterHelp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>InternalName:%String</FormalSpec>
+<Implementation><![CDATA[
+	write "Project """_InternalName_""" is not registered.",!
+	write "Please register the project if you want it to be under source control.",!
+	write "You can register the project by calling ##class(App.SourceControl).RegisterProject("""_InternalName_""", ""x:\my\project\path\cache"")",!
+]]></Implementation>
+</Method>
+
+<Method name="DeleteProject">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>InternalName</FormalSpec>
+<Implementation><![CDATA[
+	if (..GetActiveProject()=InternalName) {
+		set ^SourceControlProjectRegistry = ""
+	}
+	kill ^SourceControlProjectRegistry(InternalName)
+	write "Project ", InternalName, " has been deleted.", !
+]]></Implementation>
+</Method>
+</Class>
+</Export>
